@@ -16,7 +16,7 @@ class Preprocessor:
     def get_roadline_maps(self) -> list:
         return self.get_images_in_folder('maps/road lines/')
 
-    def crop_images_in_squares(self, image_list, width=150, height=150) -> list:
+    def crop_images_in_squares(self, image_list, width=150, height=150, crop_rest_redundancy=True) -> list:
         all_images_cropped = []
         
         for image in image_list:
@@ -27,25 +27,31 @@ class Preprocessor:
             while y + height < image_height:
                 x = 0
                 while x + width < image_width:
-                    image_crops.append(image.crop((x, y, x+width, y+height)))
+                    image_crops.append(image.crop((x, y, x+width, y+height)))                    
+                    x = x + width
+                    
+                if crop_rest_redundancy and image_width % width != 0:
+                    image_crops.append(image.crop((image_width-width, y, image_width, y+height)))
 
-                    if x + width > image_width:
-                        image_crops.append(image.crop((image_width-width, y, image_width, y+height)))
-                    if y + height > image_height:
-                        image_crops.append(image.crop((x, image_height-height, x+width, image_height)))
-
-                    x = x + width 
                 y = y + height
+            
+            if crop_rest_redundancy and image_height % height != 0:
+                x = 0
+                while x + width < image_width:
+                    image_crops.append(image.crop((x, image_height-height, x+width, image_height)))
+                    x = x + width             
+                if image_width % width != 0:
+                    image_crops.append(image.crop((image_width-width, image_height-height, image_width, image_height)))                        
 
             all_images_cropped.append(image_crops)
         
         return all_images_cropped
 
-    def crop_original_maps(self, width=150, height=150) -> list:
-        return self.crop_images_in_squares(self.get_original_maps(), width, height)
+    def crop_original_maps(self, width=150, height=150, crop_rest_redundancy=True) -> list:
+        return self.crop_images_in_squares(self.get_original_maps(), width, height, crop_rest_redundancy)
 
-    def crop_roadline_maps(self, width=150, height=150) -> list:
-        return self.crop_images_in_squares(self.get_roadline_maps(), width, height)
+    def crop_roadline_maps(self, width=150, height=150, crop_rest_redundancy=True) -> list:
+        return self.crop_images_in_squares(self.get_roadline_maps(), width, height, crop_rest_redundancy)
     
     def run(self):
         cropped_original_maps = self.crop_original_maps()
