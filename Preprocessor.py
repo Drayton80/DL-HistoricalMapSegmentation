@@ -47,10 +47,10 @@ class Preprocessor:
         
         return all_images_cropped
 
-    def crop_original_maps(self, width=150, height=150, crop_rest_redundancy=True) -> list:
+    def crop_original_maps(self, width=256, height=256, crop_rest_redundancy=True) -> list:
         return self.crop_images_in_squares(self.get_original_maps(), width, height, crop_rest_redundancy)
 
-    def crop_roadline_maps(self, width=150, height=150, crop_rest_redundancy=True) -> list:
+    def crop_roadline_maps(self, width=256, height=256, crop_rest_redundancy=True) -> list:
         return self.crop_images_in_squares(self.get_roadline_maps(), width, height, crop_rest_redundancy)
     
     def run(self):
@@ -69,16 +69,3 @@ class Preprocessor:
             for crop_index in range(len(cropped_original_maps[map_index])):
                 cropped_original_maps[map_index][crop_index].save(preprocessed_original_folder + str(crop_index) + '.png')
                 cropped_roadline_maps[map_index][crop_index].save(preprocessed_roadline_folder + str(crop_index) + '.png')
-
-
-            
-
-Preprocessor().run()
-'''
-prep = Preprocessor()
-cropped = prep.crop_images_in_squares(prep.get_original_maps())
-
-for crops_of_image in cropped:
-    for crop in crops_of_image:
-        crop.show()
-'''
