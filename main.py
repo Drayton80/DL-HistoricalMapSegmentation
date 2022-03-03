@@ -1,6 +1,7 @@
 import argparse
-
-from Preprocessor import Preprocessor
+import preprocessor
+import oldModel as modeler
+import augmentor
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-ag", "--augment", required=False, nargs='?', const=False, help="if the data will be augmented or not")
@@ -12,9 +13,12 @@ ap.add_argument("-a", "--all", required=False, nargs='?', const=False, help="if 
 args = vars(ap.parse_args())
 
 if(args["all"] or args["augment"]):
-    pass
+    augmentor.run()
 if(args["all"] or args["preprocess"]):
-    Preprocessor().run()
+    preprocessor.run(compress_in='dataset_train.npz')
 if(args["all"] or args["trainmodel"]):
-    pass
+    modeler.setup_and_train('dataset_train.npz')
+
+#modeler.generate('maps/preprocessed/0/original/17.png', '001620')
+#modeler.generate('maps/original/maps-of-medieval-cities-bologna.jpg', '001620')
 
