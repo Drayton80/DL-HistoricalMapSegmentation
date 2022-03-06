@@ -10,6 +10,7 @@ from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dropout, LeakyReLU, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 from pathlib import Path
+from utils import downscale_image_pixels
 
 # define the discriminator model
 def define_discriminator(image_shape:Tuple[int, int, int]) -> Model:
@@ -139,8 +140,8 @@ def load_real_samples(filename):
 	X1:ndarray = data['arr_0']
 	X2:ndarray = data['arr_1']
 	# scale from [0,255] to [-1,1]
-	X1 = (X1 - 127.5) / 127.5
-	X2 = (X2 - 127.5) / 127.5
+	X1 = downscale_image_pixels(X1)
+	X2 = downscale_image_pixels(X2)
 	return [X1, X2]
 
 # select a batch of random samples, returns images and target
