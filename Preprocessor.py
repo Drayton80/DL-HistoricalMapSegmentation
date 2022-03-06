@@ -11,9 +11,9 @@ from keras.preprocessing.image import img_to_array, load_img
 from utils import get_maps_mask_augmented, get_maps_source_augmented
 
 
-def crop_image_in_squares(image:Image.Image, width:int=256, height:int=256, crop_rest_redundancy:bool=True) -> list:
+def crop_image_in_squares(image:Image.Image, width:int=256, height:int=256, crop_rest_redundancy:bool=True) -> List[Image.Image]:
     image_width, image_height = image.size 
-    image_crops = []
+    image_crops:List[Image.Image] = []
 
     y = 0
     while y + height < image_height:
