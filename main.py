@@ -20,8 +20,8 @@ if(args["all"] or args["preprocess"]):
 if(args["all"] or args["trainmodel"]):
     modeler.setup_and_train('dataset_train.npz')
 
-validator.predict_test_images('trained models/previews 2/step98699_epoch300_model.h5')
-
+(masks, predictions) = validator.predict_test_images('trained models/previews 2/step98699_epoch300_model.h5', save_predictions=True)
+validator.validate_predictions_with_IoU(masks, predictions)
 #modeler.generate('maps/preprocessed/0/original/17.png', '001620')
 #modeler.generate('maps/original/maps-of-medieval-cities-bologna.jpg', '001620')
 
