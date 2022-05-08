@@ -18,22 +18,22 @@ def get_images_in_folder(folder_path:str, match_regex: str) -> List[Image.Image]
     return [Image.open(folder_path + image_name) for image_name in image_names]
 
 def get_maps_source() -> List[Image.Image]:
-    return get_images_in_folder('maps/pairs/', r".+-original\.(png|jpg)$")
-
-def get_maps_source_augmented() -> List[Image.Image]:
-    return get_images_in_folder('maps/pairs/', r".+-original-.+\.(png|jpg)$")
+    return get_images_in_folder('maps/training/', r".+-original\.(png|jpg)$")
         
 def get_maps_mask() -> List[Image.Image]:
-    return get_images_in_folder('maps/pairs/', r".+-mask\.(png|jpg)$")
+    return get_images_in_folder('maps/training/', r".+-mask\.(png|jpg)$")
+
+def get_maps_source_augmented() -> List[Image.Image]:
+    return get_images_in_folder('maps/augmented/', r".+-original-.+\.(png|jpg)$")
 
 def get_maps_mask_augmented() -> List[Image.Image]:
-    return get_images_in_folder('maps/pairs/', r".+-mask-.+\.(png|jpg)$")
+    return get_images_in_folder('maps/augmented/', r".+-mask-.+\.(png|jpg)$")
 
 def get_test_maps_source() -> List[Image.Image]:
-    return get_images_in_folder('maps/pairs test/', r".+-original\.(png|jpg)$")
+    return get_images_in_folder('maps/test/', r".+-original\.(png|jpg)$")
 
 def get_test_maps_mask() -> List[Image.Image]:
-    return get_images_in_folder('maps/pairs test/', r".+-mask\.(png|jpg)$")
+    return get_images_in_folder('maps/test/', r".+-mask\.(png|jpg)$")
 
 def image_single_channel_to_rgb(image:ndarray) -> ndarray:
     reshaped_image:ndarray = zeros((image.shape[0], image.shape[1], 3))
