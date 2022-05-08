@@ -20,16 +20,26 @@ def run() -> None:
         # Getting map's size:
         map_width: int = map_img.size[0]
         map_height: int = map_img.size[1]
-        # Resize
-        map_img.resize((int(map_width/2), int(map_height/2))).save(map_name + '-halfSize.png')
+        # Saving the source:
+        map_img.save(map_name + '.png')
+        # Half-size
+        half_suffix = '-halfSize'
+        map_half = map_img.resize((int(map_width/2), int(map_height/2)))
+        map_half.save(map_name + half_suffix + '.png')
+        # Double size:
+        double_suffix = '-doubleSize'
+        map_double = map_img.resize((int(map_width*2), int(map_height*2)))
+        map_double.save(map_name + double_suffix + '.png')
         # Rotation
-        #map_img.rotate(90).save(map_name + '-rotate90.png')
-        map_img.rotate(180).save(map_name + '-rotate180.png')
-        map_img.resize((int(map_width/2), int(map_height/2))).rotate(180).save(map_name + '-halfSize-rotate180.png')
-        #map_img.rotate(270).save(map_name + '-rotate270.png')
+        rotate_suffix = '-rotate180'
+        map_img.rotate(180).save(map_name + rotate_suffix + '.png')
+        map_half.rotate(180).save(map_name + half_suffix + rotate_suffix + '.png')
+        map_double.rotate(180).save(map_name + double_suffix + rotate_suffix + '.png')
         # Horizontal Flip
-        map_img.transpose(Image.FLIP_LEFT_RIGHT).save(map_name + '-flipHorizontal.png')
-        map_img.resize((int(map_width/2), int(map_height/2))).transpose(Image.FLIP_LEFT_RIGHT).save(map_name + '-halfSize-flipHorizontal.png')
+        flip_suffix = '-flipHorizontal'
+        map_img.transpose(Image.FLIP_LEFT_RIGHT).save(map_name + flip_suffix + '.png')
+        map_half.transpose(Image.FLIP_LEFT_RIGHT).save(map_name + half_suffix + flip_suffix + '.png')
+        map_double.transpose(Image.FLIP_LEFT_RIGHT).save(map_name + double_suffix + flip_suffix + '.png')
         
 
 
