@@ -1,5 +1,5 @@
 # example of pix2pix gan for satellite to map image-to-image translation
-from typing import Tuple
+from typing import List, Tuple
 from matplotlib import pyplot
 from numpy import load, zeros, ones, ndarray
 from numpy.random import randint
@@ -14,45 +14,44 @@ from utils import downscale_image_pixels
 
 # define the discriminator model
 def define_discriminator(image_shape:Tuple[int, int, int]) -> Model:
-    kernel_initializer = RandomNormal(stddev=0.02)
-    input_source_image = Input(shape=image_shape)
-    in_target_image = Input(shape=image_shape)
-    
-    # concatenate images channel-wise
-    merged = Concatenate()([input_source_image, in_target_image])
-   
-    # C64
-    d = Conv2D(64, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(merged)
-    d = LeakyReLU(alpha=0.2)(d)
-    # C128
-    d = Conv2D(128, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(d)
-    d = BatchNormalization()(d)
-    d = LeakyReLU(alpha=0.2)(d)
-    # C256
-    d = Conv2D(256, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(d)
-    d = BatchNormalization()(d)
-    d = LeakyReLU(alpha=0.2)(d)
-    # C512
-    d = Conv2D(512, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(d)
-    d = BatchNormalization()(d)
-    d = LeakyReLU(alpha=0.2)(d)
-    # second last output layer
-    d = Conv2D(512, (4,4), padding='same', kernel_initializer=kernel_initializer)(d)
-    d = BatchNormalization()(d)
-    d = LeakyReLU(alpha=0.2)(d)
-    # patch output
-    d = Conv2D(1, (4,4), padding='same', kernel_initializer=kernel_initializer)(d)
-    patch_out = Activation('sigmoid')(d)
+	kernel_initializer = RandomNormal(stddev=0.02)
+	input_source_image = Input(shape=image_shape)
+	in_target_image = Input(shape=image_shape)
 
-    # define model
-    model = Model([input_source_image, in_target_image], patch_out)
-    # compile model
-    model.compile(loss='binary_crossentropy', optimizer=Adam(learning_rate=0.0002, beta_1=0.5), loss_weights=[0.5])
-    
-    return model
+	# concatenate images channel-wise
+	merged = Concatenate()([input_source_image, in_target_image])
+
+	# C64
+	d = Conv2D(64, (4,4), strides=(2,2), padding='same', activation='relu', kernel_initializer=kernel_initializer)(merged)
+	d = LeakyReLU(alpha=0.2)(d)
+	# C128
+	d = Conv2D(128, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(d)
+	d = BatchNormalization()(d)
+	d = LeakyReLU(alpha=0.2)(d)
+	# C256
+	d = Conv2D(256, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(d)
+	d = BatchNormalization()(d)
+	d = LeakyReLU(alpha=0.2)(d)
+	# C512
+	d = Conv2D(512, (4,4), strides=(2,2), padding='same', kernel_initializer=kernel_initializer)(d)
+	d = BatchNormalization()(d)
+	d = LeakyReLU(alpha=0.2)(d)
+	# second last output layer
+	d = Conv2D(512, (4,4), padding='same', kernel_initializer=kernel_initializer)(d)
+	d = BatchNormalization()(d)
+	d = LeakyReLU(alpha=0.2)(d)
+	# patch output
+	patch_out = Conv2D(1, (4,4), padding='same', activation='sigmoid', kernel_initializer=kernel_initializer)(d)
+
+	# define model
+	model = Model([input_source_image, in_target_image], patch_out)
+	# compile model
+	model.compile(loss='binary_crossentropy', optimizer=Adam(learning_rate=0.0002, beta_1=0.5), loss_weights=[0.5])
+
+	return model
 
 # define an encoder block
-def define_encoder_block(layer_in, n_filters, batchnorm=True):
+def define_encoder_block(layer_in, n_filters:int, batchnorm:bool=True):
 	# weight initialization
 	init = RandomNormal(stddev=0.02)
 	# add downsampling layer
@@ -65,7 +64,7 @@ def define_encoder_block(layer_in, n_filters, batchnorm=True):
 	return g
 
 # define a decoder block
-def decoder_block(layer_in, skip_in, n_filters, dropout=True):
+def decoder_block(layer_in, skip_in, n_filters:int, dropout:bool=True):
 	# weight initialization
 	init = RandomNormal(stddev=0.02)
 	# add upsampling layer
@@ -82,7 +81,7 @@ def decoder_block(layer_in, skip_in, n_filters, dropout=True):
 	return g
 
 # define the standalone generator model
-def define_generator(image_shape=(256,256,3)) -> Model:
+def define_generator(image_shape:Tuple[int, int, int]=(256,256,3)) -> Model:
 	# weight initialization
 	init = RandomNormal(stddev=0.02)
 	# image input
@@ -114,7 +113,7 @@ def define_generator(image_shape=(256,256,3)) -> Model:
 	return model
 
 # define the combined generator and discriminator model, for updating the generator
-def define_gan(g_model, d_model, image_shape) -> Model:
+def define_gan(g_model:Model, d_model:Model, image_shape:Tuple[int, int, int]) -> Model:
 	# make weights in the discriminator not trainable
 	for layer in d_model.layers:
 		if not isinstance(layer, BatchNormalization):
@@ -133,7 +132,7 @@ def define_gan(g_model, d_model, image_shape) -> Model:
 	return model
 
 # load and prepare training images
-def load_real_samples(filename):
+def load_real_samples(filename:str) -> List[ndarray, ndarray]:
 	# load compressed arrays
 	data:NpzFile = load(filename)
 	# unpack arrays, X1 is the original maps and X2 is the road lines:
@@ -145,7 +144,7 @@ def load_real_samples(filename):
 	return [X1, X2]
 
 # select a batch of random samples, returns images and target
-def generate_real_samples(dataset, n_samples, patch_shape):
+def generate_real_samples(dataset, n_samples:int, patch_shape:int) -> Tuple[List[ndarray, ndarray], ndarray]:
 	# unpack dataset
 	source_dataset:ndarray = dataset[0]
 	target_dataset:ndarray = dataset[1]
@@ -159,7 +158,7 @@ def generate_real_samples(dataset, n_samples, patch_shape):
 	return [source_samples, target_samples], y
 
 # generate a batch of images, returns images and targets
-def generate_fake_samples(g_model, samples, patch_shape):
+def generate_fake_samples(g_model:Model, samples:ndarray, patch_shape:int):
 	# generate fake instance
 	X = g_model.predict(samples)
 	# create 'fake' class labels (0)
@@ -173,7 +172,7 @@ def summarize_file_name(step: int, epoch: int):
 	return trained_dir + trained_id
 
 # generate samples and save as a plot and save the model
-def save_trained_preview(epoch, step, g_model, dataset, n_samples=3):
+def save_trained_preview(epoch:int, step:int, g_model:Model, dataset:List[ndarray, ndarray], n_samples:int=3):
 	# select a sample of input images
 	[X_realA, X_realB], _ = generate_real_samples(dataset, n_samples, 1)
 	# generate a batch of fake samples
@@ -208,7 +207,7 @@ def save_trained_model(epoch:int, step:int, g_model:Model):
 	print('> Saved model: ' + summarize_file_name(step, epoch))
 
 # train pix2pix models
-def train(d_model, g_model, gan_model, dataset, n_epochs=300, n_batch=1):
+def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray, ndarray], n_epochs:int=300, n_batch:int=1):
 	# determine the output square shape of the discriminator
 	n_patch = d_model.output_shape[1]
 	# unpack dataset
