@@ -19,7 +19,7 @@ args = vars(ap.parse_args())
 if(args["all"] or args["augment"]):
     augmentor.run()
 if(args["all"] or args["preprocess"]):
-    preprocessor.run(compress_in='dataset_training.npz')
+    preprocessor.run('./maps/preprocessed/')
 if(args["all"] or args["training"]):
     trainer.run('dataset_training.npz')
 if(args["all"] or args["test"]):
