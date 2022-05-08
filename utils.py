@@ -12,7 +12,7 @@ def get_images_in_folder(folder_path:str, match_regex: str) -> List[Image.Image]
 
     for file_name in listdir(folder_path):
         if re.match(match_regex, file_name):
-            print('getting image:', file_name)
+            print('> Getting image:', file_name)
             image_names.append(file_name)
 
     return [Image.open(folder_path + image_name) for image_name in image_names]
