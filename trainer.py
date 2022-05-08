@@ -132,7 +132,7 @@ def define_gan(g_model:Model, d_model:Model, image_shape:Tuple[int, int, int]) -
 	return model
 
 # load and prepare training images
-def load_real_samples(filename:str) -> List[ndarray, ndarray]:
+def load_real_samples(filename:str) -> List[ndarray]:
 	# load compressed arrays
 	data:NpzFile = load(filename)
 	# unpack arrays, X1 is the original maps and X2 is the road lines:
@@ -144,7 +144,7 @@ def load_real_samples(filename:str) -> List[ndarray, ndarray]:
 	return [X1, X2]
 
 # select a batch of random samples, returns images and target
-def generate_real_samples(dataset, n_samples:int, patch_shape:int) -> Tuple[List[ndarray, ndarray], ndarray]:
+def generate_real_samples(dataset, n_samples:int, patch_shape:int) -> Tuple[ndarray, ndarray, ndarray]:
 	# unpack dataset
 	source_dataset:ndarray = dataset[0]
 	target_dataset:ndarray = dataset[1]
@@ -155,7 +155,7 @@ def generate_real_samples(dataset, n_samples:int, patch_shape:int) -> Tuple[List
 	target_samples:ndarray = target_dataset[random_indexes]
 	# generate 'real' class labels (1)
 	y = ones((n_samples, patch_shape, patch_shape, 1))
-	return [source_samples, target_samples], y
+	return source_samples, target_samples, y
 
 # generate a batch of images, returns images and targets
 def generate_fake_samples(g_model:Model, samples:ndarray, patch_shape:int):
@@ -172,9 +172,9 @@ def summarize_file_name(step: int, epoch: int):
 	return trained_dir + trained_id
 
 # generate samples and save as a plot and save the model
-def save_trained_preview(epoch:int, step:int, g_model:Model, dataset:List[ndarray, ndarray], n_samples:int=3):
+def save_trained_preview(epoch:int, step:int, g_model:Model, dataset:List[ndarray], n_samples:int=3):
 	# select a sample of input images
-	[X_realA, X_realB], _ = generate_real_samples(dataset, n_samples, 1)
+	X_realA, X_realB, _ = generate_real_samples(dataset, n_samples, 1)
 	# generate a batch of fake samples
 	X_fakeB, _ = generate_fake_samples(g_model, X_realA, 1)
 	# scale all pixels from [-1,1] to [0,1]
@@ -207,7 +207,7 @@ def save_trained_model(epoch:int, step:int, g_model:Model):
 	print('> Saved model: ' + summarize_file_name(step, epoch))
 
 # train pix2pix models
-def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray, ndarray], n_epochs:int=300, n_batch:int=1):
+def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray], n_epochs:int=300, n_batch:int=1):
 	# determine the output square shape of the discriminator
 	n_patch = d_model.output_shape[1]
 	# unpack dataset
@@ -223,7 +223,7 @@ def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray, n
 
 	for step in range(n_steps):
 		# select a batch of real samples
-		[real_map, real_mask], real_y = generate_real_samples(dataset, n_batch, n_patch)
+		real_map, real_mask, real_y = generate_real_samples(dataset, n_batch, n_patch)
 		# generate a batch of fake samples
 		fake_mask, fake_y = generate_fake_samples(g_model, real_map, n_patch)
 		# update discriminator for real samples
