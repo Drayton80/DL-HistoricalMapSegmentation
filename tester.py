@@ -7,7 +7,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from preprocessor import crop_image_in_squares
-from utils import save_ndarray_as_image, get_test_maps_mask, get_test_maps_source, downscale_image_pixels, upscale_image_pixels
+from utils import save_ndarray_as_image, get_test_masks, get_test_maps, downscale_image_pixels, upscale_image_pixels
 
 def remove_alpha_channel(image:ndarray) -> ndarray:
     return image[:, :, :3] if len(image[0][0]) == 4 else image
@@ -35,8 +35,8 @@ def classify_each_pixel(image:ndarray) -> ndarray:
 def predict_test_images(model_path:str, save_predictions:bool) -> Tuple[List[ndarray], List[ndarray]]:
     print('> loading model ' + model_path)
     model:keras.Model = keras.models.load_model(model_path, compile=False)
-    maps:List[Image.Image] = get_test_maps_source()
-    masks:List[Image.Image] = get_test_maps_mask()
+    maps:List[Image.Image] = get_test_maps()
+    masks:List[Image.Image] = get_test_masks()
     masks_rgb:List[ndarray] = []
     predictions_rgb:List[ndarray] = []
     
