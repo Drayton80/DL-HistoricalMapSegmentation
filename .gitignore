@@ -138,3 +138,7 @@ dmypy.json
 
 # Photoshop Files
 *.psd
+
+# Preprocess Folders
+maps/preprocessed/*
+maps/augmented/*
