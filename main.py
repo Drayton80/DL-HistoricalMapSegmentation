@@ -3,9 +3,9 @@ import glob
 import argparse
 
 import preprocessor
-import oldModel as modeler
+import trainer
 import augmentor
-import validator
+import tester
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-ag", "--augment", required=False, nargs='?', const=False, help="if the data will be augmented or not")
@@ -21,8 +21,8 @@ if(args["all"] or args["augment"]):
 if(args["all"] or args["preprocess"]):
     preprocessor.run(compress_in='dataset_train.npz')
 if(args["all"] or args["train"]):
-    modeler.setup_and_train('dataset_train.npz')
+    trainer.run('dataset_train.npz')
 if(args["all"] or args["test"]):
     latest_model:str = max(glob.glob('./trained models/*.h5'), key=os.path.getctime)
-    validator.run('trained models/' + latest_model)
+    tester.run('trained models/' + latest_model)
 
