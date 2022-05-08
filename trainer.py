@@ -244,7 +244,7 @@ def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray, n
 		if (step+1) % (bat_per_epo * 50) == 0:
 			save_trained_model(epoch, step, g_model)
 
-def setup_and_train(image_file:str) -> None:
+def run(image_file:str) -> None:
 	# load image data
 	dataset = load_real_samples(image_file)
 	print('Loaded', dataset[0].shape, dataset[1].shape)
