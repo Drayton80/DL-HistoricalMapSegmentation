@@ -108,3 +108,8 @@ def validate_predictions_with_IoU(masks:List[ndarray], predictions:List[ndarray]
         file.write('IoU of road segmentation: ' + str(roads_IoU_mean) + '\n')
         file.write('IoU of building segmentation: ' + str(buildings_IoU_mean) + '\n')
         file.write('Mean IoU of all classes (empty spaces included): ' + str(all_IoU_mean) + '\n')
+
+# Run the validation of one given model:
+def run(model_path:str, save_predictions:bool=True) -> None:
+    (masks, predictions) = predict_test_images(model_path, save_predictions)
+    validate_predictions_with_IoU(masks, predictions)
