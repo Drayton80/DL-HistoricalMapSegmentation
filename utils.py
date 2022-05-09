@@ -1,10 +1,37 @@
 import re
 import numpy as np
-from typing import List
+from typing import List, Tuple
 from PIL import Image
 from os import listdir
 from matplotlib import pyplot as plt
 from pathlib import Path
+
+# Load the entire data set in numpy arrays, not used anymore due to memory consumption issues
+def load_dataset(preprocessed_folder:str) -> List[np.ndarray]:
+	all_file_names = listdir(preprocessed_folder)
+
+	maps:List[np.ndarray] = []
+	map_files = filter(lambda file_name : 'map_' in file_name, all_file_names)
+	for map_file in map_files:
+		map_tiles:np.ndarray = np.load(preprocessed_folder + map_file)['arr_0']
+		maps.append(map_tiles)
+
+	masks:List[np.ndarray] = []
+	mask_files = filter(lambda file_name : 'mask_' in file_name, all_file_names)
+	for mask_file in mask_files:
+		map_tiles:np.ndarray = np.load(preprocessed_folder + mask_file)['arr_0']
+		masks.append(map_tiles)
+
+	return [maps, masks]
+
+def load_dataset_map(preprocessed_folder:str, index:int) -> np.ndarray:
+	return np.load(preprocessed_folder + 'map_' + str(index) + '.npz')['arr_0']
+
+def load_dataset_mask(preprocessed_folder:str, index:int) -> np.ndarray:
+	return np.load(preprocessed_folder + 'mask_' + str(index) + '.npz')['arr_0']
+
+def load_dataset_pair(preprocessed_folder:str, index:int) -> Tuple[np.ndarray, np.ndarray]:
+	return (load_dataset_map(preprocessed_folder, index), load_dataset_mask(preprocessed_folder, index))
 
 def get_images_names_in_folder(folder_path:str, match_regex: str) -> List[str]:
     image_names: List[str] = []
