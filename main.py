@@ -19,9 +19,9 @@ args = vars(ap.parse_args())
 if(args["all"] or args["augment"]):
     augmentor.run()
 if(args["all"] or args["preprocess"]):
-    preprocessor.run('./maps/preprocessed/')
+    preprocessor.run()
 if(args["all"] or args["training"]):
-    trainer.run('dataset_training.npz')
+    trainer.run()
 if(args["all"] or args["test"]):
     latest_model:str = max(glob.glob('./trained models/*.h5'), key=os.path.getctime)
     tester.run('trained models/' + latest_model)
