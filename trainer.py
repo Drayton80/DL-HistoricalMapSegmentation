@@ -1,8 +1,10 @@
-# example of pix2pix gan for satellite to map image-to-image translation
+import os
+import re
+import numpy as np
+from random import randint
+from os import listdir
 from typing import List, Tuple
 from matplotlib import pyplot
-from numpy import load, zeros, ones, ndarray
-from numpy.random import randint
 from numpy.lib.npyio import NpzFile
 from tensorflow.keras import Input
 from tensorflow.keras import Model
@@ -10,7 +12,7 @@ from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dropout, LeakyReLU, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 from pathlib import Path
-from utils import downscale_image_pixels
+from utils import downscale_image_pixels, load_dataset_map, load_dataset_mask
 
 # define the discriminator model
 def define_discriminator(image_shape:Tuple[int, int, int]) -> Model:
@@ -131,38 +133,27 @@ def define_gan(g_model:Model, d_model:Model, image_shape:Tuple[int, int, int]) -
 	model.compile(loss=['binary_crossentropy', 'mae'], optimizer=opt, loss_weights=[1,100])
 	return model
 
-# load and prepare training images
-def load_real_samples(filename:str) -> List[ndarray]:
-	# load compressed arrays
-	data:NpzFile = load(filename)
-	# unpack arrays, X1 is the original maps and X2 is the road lines:
-	X1:ndarray = data['arr_0']
-	X2:ndarray = data['arr_1']
-	# scale from [0,255] to [-1,1]
-	X1 = downscale_image_pixels(X1)
-	X2 = downscale_image_pixels(X2)
-	return [X1, X2]
-
 # select a batch of random samples, returns images and target
-def generate_real_samples(dataset, n_samples:int, patch_shape:int) -> Tuple[ndarray, ndarray, ndarray]:
-	# unpack dataset
-	source_dataset:ndarray = dataset[0]
-	target_dataset:ndarray = dataset[1]
-	# choose random instances
-	random_indexes:list[int, int, int] = randint(0, source_dataset.shape[0], n_samples)
-	# retrieve selected images
-	source_samples:ndarray = source_dataset[random_indexes]
-	target_samples:ndarray = target_dataset[random_indexes]
+def generate_real_samples(images_folder:str, total_images:int, n_samples:int, patch_shape:int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+	# choose random images
+	random_image_indexes:List[int] = np.random.randint(0, total_images, n_samples)
+	source_images:np.ndarray = [load_dataset_map(images_folder, index) for index in random_image_indexes]
+	target_images:np.ndarray = [load_dataset_mask(images_folder, index) for index in random_image_indexes]
+	# choose a random tile in each image
+	random_tiles_indexes:List[int] = [randint(0, image.shape[0]-1) for image in source_images]
+	source_samples:np.ndarray = [np.asarray([source_images[index][random_tiles_indexes[index]]]) for index in range(len(random_tiles_indexes))]
+	target_samples:np.ndarray = [np.asarray([target_images[index][random_tiles_indexes[index]]]) for index in range(len(random_tiles_indexes))]
+	#[print('> Loaded | Source: ' + str(source_samples[index].shape) + ' Target: ' + str(target_samples[index].shape)) for index in range(len(source_samples))]
 	# generate 'real' class labels (1)
-	y = ones((n_samples, patch_shape, patch_shape, 1))
+	y = np.ones((n_samples, patch_shape, patch_shape, 1))
 	return source_samples, target_samples, y
 
 # generate a batch of images, returns images and targets
-def generate_fake_samples(g_model:Model, samples:ndarray, patch_shape:int):
+def generate_fake_samples(g_model:Model, samples:np.ndarray, patch_shape:int):
 	# generate fake instance
 	X = g_model.predict(samples)
 	# create 'fake' class labels (0)
-	y = zeros((len(X), patch_shape, patch_shape, 1))
+	y = np.zeros((len(X), patch_shape, patch_shape, 1))
 	return X, y
 
 def summarize_file_name(step: int, epoch: int):
@@ -172,9 +163,9 @@ def summarize_file_name(step: int, epoch: int):
 	return trained_dir + trained_id
 
 # generate samples and save as a plot and save the model
-def save_trained_preview(epoch:int, step:int, g_model:Model, dataset:List[ndarray], n_samples:int=3):
+def save_trained_preview(epoch:int, step:int, g_model:Model, images_folder:str, total_images:int, n_samples:int=3):
 	# select a sample of input images
-	X_realA, X_realB, _ = generate_real_samples(dataset, n_samples, 1)
+	X_realA, X_realB, _ = generate_real_samples(images_folder, total_images, n_samples, 1)
 	# generate a batch of fake samples
 	X_fakeB, _ = generate_fake_samples(g_model, X_realA, 1)
 	# scale all pixels from [-1,1] to [0,1]
@@ -206,24 +197,45 @@ def save_trained_model(epoch:int, step:int, g_model:Model):
 	g_model.save(summarize_file_name(step, epoch) + '_model.h5')
 	print('> Saved model: ' + summarize_file_name(step, epoch))
 
+def calculate_total_tiles_in_folder(images_folder:str) -> int:
+	map_files = filter(lambda file_name : 'map_' in file_name, listdir(images_folder))
+	total_tiles = sum([len(np.load(images_folder + map_file)['arr_0']) for map_file in map_files])
+	return total_tiles
+
+# Calculates the total number of batches per training epoch:
+def total_number_of_tiles(images_folder:str) -> int:
+	if not os.path.isfile(images_folder + 'total_tiles.txt'):
+		open(images_folder + 'total_tiles.txt', 'w+').close()
+	
+	total_tiles_in_file = None
+	with open(images_folder + 'total_tiles.txt', 'r') as total_tiles_file:
+		total_tiles_in_file = total_tiles_file.readline()
+	
+	if total_tiles_in_file:
+		return int(total_tiles_in_file)
+	else:
+		with open(images_folder + 'total_tiles.txt', 'w') as total_tiles_file:
+			total_tiles = calculate_total_tiles_in_folder(images_folder)
+			total_tiles_file.write(str(total_tiles))
+			return total_tiles
+
 # train pix2pix models
-def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray], n_epochs:int=300, n_batch:int=1):
-	# determine the output square shape of the discriminator
-	n_patch = d_model.output_shape[1]
-	# unpack dataset
-	trainA, trainB = dataset
-	# calculate the number of batches per training epoch
-	bat_per_epo = int(len(trainA) / n_batch)
+def train(d_model:Model, g_model:Model, gan_model:Model, images_folder:str, n_epochs:int=300, n_batch:int=1):
+	total_train_images = len(listdir(images_folder)) / 2
+	total_train_tiles = total_number_of_tiles(images_folder)
+	batches_per_epoch = int(total_train_tiles / n_batch)
 	# calculate the number of training iterations necessary to complete all the epochs
-	n_steps = bat_per_epo * n_epochs
+	n_steps = batches_per_epoch * n_epochs
 	# manually enumerate epochs
 	epoch:int = 0
+	# determine the output square shape of the discriminator
+	n_patch = d_model.output_shape[1]
 	
 	Path('trained models/').mkdir(parents=True, exist_ok=True)
 
 	for step in range(n_steps):
 		# select a batch of real samples
-		real_map, real_mask, real_y = generate_real_samples(dataset, n_batch, n_patch)
+		real_map, real_mask, real_y = generate_real_samples(images_folder, total_train_images, n_batch, n_patch)
 		# generate a batch of fake samples
 		fake_mask, fake_y = generate_fake_samples(g_model, real_map, n_patch)
 		# update discriminator for real samples
@@ -233,27 +245,25 @@ def train(d_model:Model, g_model:Model, gan_model:Model, dataset:List[ndarray], 
 		# update the generator
 		g_loss, _, _ = gan_model.train_on_batch(real_map, [real_y, real_mask])
 		# summarize performance
-		print('> step[%d] epoch[%d] - losses: dis_real[%.3f] dis_fake[%.3f] generator[%.3f]' % (step+1, epoch, d_loss1, d_loss2, g_loss))
+		print('> epoch[%d] step[%d] - losses: dis_real[%.3f] dis_fake[%.3f] generator[%.3f]' % (epoch, step+1, d_loss1, d_loss2, g_loss))
 		# checks if the epoch had finish
-		if (step+1) % bat_per_epo == 0:
+		if (step+1) % batches_per_epoch == 0:
 			epoch = epoch + 1
 		# save trained preview after 10 epochs
-		if (step+1) % (bat_per_epo * 10) == 0:
-			save_trained_preview(epoch, step, g_model, dataset)
+		if (step+1) % (batches_per_epoch * 10) == 0:
+			save_trained_preview(epoch, step, g_model, images_folder, total_train_images)
 		# save trained model after 100 epochs
-		if (step+1) % (bat_per_epo * 50) == 0:
+		if (step+1) % (batches_per_epoch * 50) == 0:
 			save_trained_model(epoch, step, g_model)
 
-def run(image_file:str) -> None:
-	# load image data
-	dataset = load_real_samples(image_file)
-	print('Loaded', dataset[0].shape, dataset[1].shape)
+def run(images_folder:str = './maps/preprocessed/') -> None:
+	#print('Loaded', maps.shape, masks.shape)
 	# define input shape based on the loaded dataset
-	image_shape:Tuple[int, int, int] = dataset[0].shape[1:]
+	image_shape:Tuple[int, int, int] = (256, 256, 3)
 	# define the models
 	discriminator_model:Model = define_discriminator(image_shape)
 	generator_model:Model = define_generator(image_shape)
 	# define the composite model
 	gan_model:Model = define_gan(generator_model, discriminator_model, image_shape)
 	# train model
-	train(discriminator_model, generator_model, gan_model, dataset)
+	train(discriminator_model, generator_model, gan_model, images_folder)
