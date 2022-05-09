@@ -75,7 +75,7 @@ def preprocess_images(path_folder:str, file_preffix:str, images:list):
         np.savez_compressed(file_path, compress_list)
         print('> Preprocessed: ' + file_name)
 
-def run(path_folder:str) -> None:
+def run(path_folder:str = './maps/preprocessed/') -> None:
     Path(path_folder).mkdir(parents=True, exist_ok=True)
     preprocess_images(path_folder, "map", get_maps_augmented())
     preprocess_images(path_folder, "mask", get_masks_augmented())
