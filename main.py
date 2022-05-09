@@ -2,10 +2,10 @@ import os
 import glob
 import argparse
 
-import preprocessor
-import trainer
-import augmentor
-import tester
+import preprocess
+import training
+import augment
+import test
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-ag", "--augment", required=False, nargs='?', const=True, help="if the data will be augmented or not")
@@ -17,12 +17,12 @@ ap.add_argument("-a", "--all", required=False, nargs='?', const=True, help="if w
 args = vars(ap.parse_args())
 
 if(args["all"] or args["augment"]):
-    augmentor.run()
+    augment.run()
 if(args["all"] or args["preprocess"]):
-    preprocessor.run()
+    preprocess.run()
 if(args["all"] or args["training"]):
-    trainer.run()
+    training.run()
 if(args["all"] or args["test"]):
     latest_model:str = max(glob.glob('./trained models/*.h5'), key=os.path.getctime)
-    tester.run('trained models/' + latest_model)
+    test.run('trained models/' + latest_model)
 
