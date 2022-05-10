@@ -229,28 +229,7 @@ def calculate_tiles_per_image(images_folder:str) -> List[int]:
 			total_tiles_file.write(','.join(str(tiles) for tiles in tiles_per_image))
 			return tiles_per_image
 
-def get_load_chunks(tiles_per_image:List[int]) -> List[int]:
-	chunks = []
-	current_tiles_sum = 0
-	for idx, tiles_number in enumerate(tiles_per_image):
-		current_tiles_sum += tiles_number
-		if current_tiles_sum > 1000:
-			chunk = (chunks[-1][1], idx) if len(chunks) > 0 else (0, idx)
-			chunks.append(chunk)
-	return chunks
-
-def load_chunk_maps(images_folder:str, start:int, end:int) -> List[np.ndarray]:
-	return [load_dataset_map(images_folder, index) for index in range(start, end)]
-
-def load_chunk_masks(images_folder:str, start:int, end:int) -> List[np.ndarray]:
-	return [load_dataset_mask(images_folder, index) for index in range(start, end)]
-
-def load_chunk_pairs(images_folder:str, start:int, end:int) -> List[np.ndarray]:
-	maps_tiles = [tiles for tiles in [image for image in load_chunk_maps(images_folder, start, end)]]
-	masks_tiles = [tiles for tiles in [image for image in load_chunk_masks(images_folder, start, end)]]
-	return [(maps_tiles[index], masks_tiles[index]) for index in range(len(maps_tiles))]
-
-# train pix2pix models
+# Train Pix2Pix Generative and Discriminator models
 def train(d_model:Model, g_model:Model, gan_model:Model, images_folder:str, n_epochs:int=300, n_batch:int=1):
 	total_train_images = len(listdir(images_folder)) / 2
 	tiles_per_image = calculate_tiles_per_image(images_folder)
