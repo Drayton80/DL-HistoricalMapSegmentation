@@ -6,7 +6,7 @@ from typing import Tuple, List
 from PIL import Image
 from tqdm import tqdm
 
-from preprocessor import crop_image_in_squares
+from preprocess import crop_image_in_squares
 from utils import save_ndarray_as_image, get_test_masks, get_test_maps, downscale_image_pixels, upscale_image_pixels
 
 def remove_alpha_channel(image:ndarray) -> ndarray:
