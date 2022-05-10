@@ -1,5 +1,6 @@
 import os
 import re
+import chunk
 import numpy as np
 from random import randint
 from os import listdir
@@ -12,7 +13,6 @@ from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.layers import Concatenate, Conv2D, Conv2DTranspose, Dropout, LeakyReLU, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 from pathlib import Path
-from utils import downscale_image_pixels, load_dataset_map, load_dataset_mask, load_dataset_pair
 
 # define the discriminator model
 def define_discriminator(image_shape:Tuple[int, int, int]) -> Model:
@@ -133,31 +133,14 @@ def define_gan(g_model:Model, d_model:Model, image_shape:Tuple[int, int, int]) -
 	model.compile(loss=['binary_crossentropy', 'mae'], optimizer=opt, loss_weights=[1,100])
 	return model
 
-# select a batch of random samples, returns images and target
-def generate_real_samples(images_folder:str, total_images:int, n_samples:int, patch_shape:int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-	# choose random images
-	random_image_indexes:List[int] = np.random.randint(0, total_images, n_samples)
-	source_images:np.ndarray = [load_dataset_map(images_folder, index) for index in random_image_indexes]
-	target_images:np.ndarray = [load_dataset_mask(images_folder, index) for index in random_image_indexes]
-	# choose a random tile in each image
-	random_tiles_indexes:List[int] = [randint(0, image.shape[0]-1) for image in source_images]
-	source_samples:np.ndarray = [np.asarray([source_images[index][random_tiles_indexes[index]]]) for index in range(len(random_tiles_indexes))]
-	target_samples:np.ndarray = [np.asarray([target_images[index][random_tiles_indexes[index]]]) for index in range(len(random_tiles_indexes))]
+def generate_real_samples(dataset_chunk:List[Tuple[np.ndarray, np.ndarray]], n_samples:int, patch_shape:int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+	# Get random tiles in the dataset's chunk:
+	random_image_indexes:List[int] = np.random.randint(0, len(dataset_chunk), n_samples)
+	map_samples:np.ndarray = np.asarray([dataset_chunk[index][0] for index in random_image_indexes])
+	mask_samples:np.ndarray = np.asarray([dataset_chunk[index][1] for index in random_image_indexes])
 	# generate 'real' class labels (1)
 	y = np.ones((n_samples, patch_shape, patch_shape, 1))
-	return source_samples, target_samples, y
-
-def generate_real_samples(dataset:List[np.ndarray], n_samples:int, patch_shape:int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-	random_image_indexes:List[int] = np.random.randint(0, len(dataset), n_samples)
-	source_images:np.ndarray = [dataset[index] for index in random_image_indexes]
-	target_images:np.ndarray = [dataset[index] for index in random_image_indexes]
-	# choose a random tile in each image
-	random_tiles_indexes:List[int] = [randint(0, image.shape[0]-1) for image in source_images]
-	source_samples:np.ndarray = [np.asarray([source_images[index][random_tiles_indexes[index]]]) for index in range(len(random_tiles_indexes))]
-	target_samples:np.ndarray = [np.asarray([target_images[index][random_tiles_indexes[index]]]) for index in range(len(random_tiles_indexes))]
-	# generate 'real' class labels (1)
-	y = np.ones((n_samples, patch_shape, patch_shape, 1))
-	return source_samples, target_samples, y
+	return map_samples, mask_samples, y
 
 # generate a batch of images, returns images and targets
 def generate_fake_samples(g_model:Model, samples:np.ndarray, patch_shape:int):
@@ -174,9 +157,9 @@ def summarize_file_name(step: int, epoch: int):
 	return trained_dir + trained_id
 
 # generate samples and save as a plot and save the model
-def save_trained_preview(epoch:int, step:int, g_model:Model, images_folder:str, total_images:int, n_samples:int=3):
+def save_trained_preview(epoch:int, step:int, g_model:Model, dataset_chunk:List[Tuple[np.ndarray, np.ndarray]], total_images:int, n_samples:int=3):
 	# select a sample of input images
-	X_realA, X_realB, _ = generate_real_samples(images_folder, total_images, n_samples, 1)
+	X_realA, X_realB, _ = generate_real_samples(dataset_chunk, total_images, n_samples, 1)
 	# generate a batch of fake samples
 	X_fakeB, _ = generate_fake_samples(g_model, X_realA, 1)
 	# scale all pixels from [-1,1] to [0,1]
@@ -231,52 +214,52 @@ def calculate_tiles_per_image(images_folder:str) -> List[int]:
 
 # Train Pix2Pix Generative and Discriminator models
 def train(d_model:Model, g_model:Model, gan_model:Model, images_folder:str, n_epochs:int=300, n_batch:int=1):
-	total_train_images = len(listdir(images_folder)) / 2
 	tiles_per_image = calculate_tiles_per_image(images_folder)
+	total_train_images = len(listdir(images_folder)) / 2
 	total_tiles = sum(tiles_per_image)
 	batches_per_epoch = int(total_tiles / n_batch)
-	load_chunks = get_load_chunks(tiles_per_image)
-	dataset_chunk_pairs = load_chunk_pairs(images_folder, load_chunks[current_chunk][0], load_chunks[current_chunk][1])
-	# calculate the number of training iterations necessary to complete all the epochs
-	n_steps = batches_per_epoch * n_epochs
-	# manually enumerate epochs
-	epoch:int = 0
-	# determine the output square shape of the discriminator
+	total_steps = batches_per_epoch * n_epochs
+	chunks_images, chunks_tiles = chunk.boundaries(tiles_per_image, max_chunk_size=1500)
+	print(chunks_images)
+	print(chunks_tiles)
+	epoch = 0
+	# Determine the output square shape of the discriminator:
 	n_patch = d_model.output_shape[1]
-	
+	# Creates trained models dir if necessary:
 	Path('trained models/').mkdir(parents=True, exist_ok=True)
 
-	tiles_index = 0
-	current_chunk = 0
-	for step in range(n_steps):
-		# select a batch of real samples
+	tile_idx = 0
+	chunk_idx = 0
+	dataset_chunk_pairs = chunk.load_pairs(images_folder, chunks_images[chunk_idx][0], chunks_images[chunk_idx][1])
+	for step in range(total_steps):
+		# Check if it's a new chunk to load the new pairs of data:
+		if tile_idx > chunks_tiles[chunk_idx][1]:
+			chunk_idx += 1
+			dataset_chunk_pairs = chunk.load_pairs(images_folder, chunks_images[chunk_idx][0], chunks_images[chunk_idx][1])
+		# Restart the current chunk and tiles if the tiles index reach its maximum:
+		if (tile_idx+1) % total_tiles == 0:
+			tile_idx = 0
+			chunk_idx = 0
+		else:
+			tile_idx += 1
+		# Get the real and fake samples
 		real_map, real_mask, real_y = generate_real_samples(dataset_chunk_pairs, n_batch, n_patch)
-		# generate a batch of fake samples
 		fake_mask, fake_y = generate_fake_samples(g_model, real_map, n_patch)
-		# update discriminator for real samples
+		# Get generator and discriminator losses:
 		d_loss1 = d_model.train_on_batch([real_map, real_mask], real_y)
-		# update discriminator for generated samples
 		d_loss2 = d_model.train_on_batch([real_map, fake_mask], fake_y)
-		# update the generator
 		g_loss, _, _ = gan_model.train_on_batch(real_map, [real_y, real_mask])
-		# summarize performance
-		print('> epoch[%d] step[%d] - losses: dis_real[%.3f] dis_fake[%.3f] generator[%.3f]' % (epoch, step+1, d_loss1, d_loss2, g_loss))
-		if tiles_index + 1 > tiles_per_image[load_chunks[current_chunk][1]]:
-			dataset_chunk_pairs = load_chunk_pairs(images_folder, load_chunks[current_chunk][0], load_chunks[current_chunk][1])
-			current_chunk += 1
-		if (tiles_index+1) % total_tiles == 0:
-			tiles_index = 0
-			current_chunk = 0
-		# checks if the epoch had finish
+		# Checks if the epoch had finish
 		if (step+1) % batches_per_epoch == 0:
 			epoch = epoch + 1
-		# save trained preview after 10 epochs
+		# Save trained preview after 10 epochs
 		if (step+1) % (batches_per_epoch * 10) == 0:
-			save_trained_preview(epoch, step, g_model, images_folder, total_train_images)
-		# save trained model after 100 epochs
+			save_trained_preview(epoch, step, g_model, dataset_chunk_pairs, total_train_images)
+		# Save trained model after 50 epochs
 		if (step+1) % (batches_per_epoch * 50) == 0:
 			save_trained_model(epoch, step, g_model)
-		tiles_index += 1
+		# Summarize the performance per epoch and step
+		print('> epoch[%d] chunk[%d] step[%d] - losses: dis_real[%.3f] dis_fake[%.3f] generator[%.3f]' % (epoch+1, chunk_idx+1, step+1, d_loss1, d_loss2, g_loss))
 
 def run(images_folder:str = './maps/preprocessed/') -> None:
 	#print('Loaded', maps.shape, masks.shape)
