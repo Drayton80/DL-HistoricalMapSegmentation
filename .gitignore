@@ -142,3 +142,8 @@ dmypy.json
 # Preprocess Folders
 maps/preprocessed/*
 maps/augmented/*
+maps/predictions/*
+maps/test/*
+
+# Trained Models Folder
+trained models/*
