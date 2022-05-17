@@ -23,6 +23,6 @@ if(args["all"] or args["preprocess"]):
 if(args["all"] or args["training"]):
     training.run()
 if(args["all"] or args["test"]):
-    latest_model:str = max(glob.glob('./trained models/*.h5'), key=os.path.getctime)
-    test.run('trained models/' + latest_model)
+    latest_model:str = max(glob.glob('./trained models/*.h5'), key=os.path.getctime).replace('\\', '/')
+    test.run(latest_model)
 
