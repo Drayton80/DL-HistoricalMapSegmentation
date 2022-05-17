@@ -85,6 +85,10 @@ def save_ndarray_as_image(folder:str, image_name:str, image:np.ndarray) -> None:
 def downscale_image_pixels(image:np.ndarray) -> np.ndarray:
     return (image - 127.5) / 127.5
 
+# scale from [0,255] to [-1,1]
+def downscale_pair_image_pixels(pair_image:Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+    return (downscale_image_pixels(pair_image[0]), downscale_image_pixels(pair_image[1]))
+
 # scale from [-1,1] to [0,255] 
 def upscale_image_pixels(image:np.ndarray) -> np.ndarray:
     return image * 127.5 + 127.5
