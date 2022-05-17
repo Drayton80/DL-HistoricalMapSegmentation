@@ -1,6 +1,4 @@
-import os
 import re
-import chunk
 import numpy as np
 from random import randint
 from os import listdir
@@ -157,9 +155,9 @@ def summarize_file_name(step: int, epoch: int):
 	return trained_dir + trained_id
 
 # generate samples and save as a plot and save the model
-def save_trained_preview(epoch:int, step:int, g_model:Model, dataset_chunk:List[Tuple[np.ndarray, np.ndarray]], total_images:int, n_samples:int=3):
+def save_trained_preview(epoch:int, step:int, g_model:Model, dataset_chunk:List[Tuple[np.ndarray, np.ndarray]], n_samples:int=3):
 	# select a sample of input images
-	X_realA, X_realB, _ = generate_real_samples(dataset_chunk, total_images, n_samples, 1)
+	X_realA, X_realB, _ = generate_real_samples(dataset_chunk, n_samples, 1)
 	# generate a batch of fake samples
 	X_fakeB, _ = generate_fake_samples(g_model, X_realA, 1)
 	# scale all pixels from [-1,1] to [0,1]
@@ -191,57 +189,23 @@ def save_trained_model(epoch:int, step:int, g_model:Model):
 	g_model.save(summarize_file_name(step, epoch) + '_model.h5')
 	print('> Saved model: ' + summarize_file_name(step, epoch))
 
-def get_tiles_per_image(images_folder:str) -> int:
-	map_files = filter(lambda file_name : 'map_' in file_name, listdir(images_folder))
-	return [len(np.load(images_folder + map_file)['arr_0']) for map_file in map_files]
-
-# Calculates the total number of batches per training epoch:
-def calculate_tiles_per_image(images_folder:str) -> List[int]:
-	if not os.path.isfile(images_folder + 'total_tiles.txt'):
-		open(images_folder + 'total_tiles.txt', 'w+').close()
-	
-	tiles_per_image = None
-	with open(images_folder + 'total_tiles.txt', 'r') as total_tiles_file:
-		tiles_per_image = total_tiles_file.readline()
-
-	if tiles_per_image:
-		return [int(tiles) for tiles in tiles_per_image.split(',')]
-	else:
-		with open(images_folder + 'total_tiles.txt', 'w') as total_tiles_file:
-			tiles_per_image = get_tiles_per_image(images_folder)
-			total_tiles_file.write(','.join(str(tiles) for tiles in tiles_per_image))
-			return tiles_per_image
-
 # Train Pix2Pix Generative and Discriminator models
 def train(d_model:Model, g_model:Model, gan_model:Model, images_folder:str, n_epochs:int=300, n_batch:int=1):
-	tiles_per_image = calculate_tiles_per_image(images_folder)
-	total_train_images = len(listdir(images_folder)) / 2
-	total_tiles = sum(tiles_per_image)
+	files_name = tuple(filter(lambda name : 'train' in name, listdir(images_folder)))
+	chunks_file_path = [images_folder + chunk_file_name for chunk_file_name in files_name]
+	total_tiles = sum([int(re.search(r".+size([0-9]+).+", chunk_file_path).group(1)) for chunk_file_path in chunks_file_path])
 	batches_per_epoch = int(total_tiles / n_batch)
 	total_steps = batches_per_epoch * n_epochs
-	chunks_images, chunks_tiles = chunk.boundaries(tiles_per_image, max_chunk_size=1500)
-	print(chunks_images)
-	print(chunks_tiles)
 	epoch = 0
 	# Determine the output square shape of the discriminator:
 	n_patch = d_model.output_shape[1]
 	# Creates trained models dir if necessary:
 	Path('trained models/').mkdir(parents=True, exist_ok=True)
 
-	tile_idx = 0
-	chunk_idx = 0
-	dataset_chunk_pairs = chunk.load_pairs(images_folder, chunks_images[chunk_idx][0], chunks_images[chunk_idx][1])
+	tile_index = 0
+	chunk_index = 0
+	dataset_chunk_pairs = np.load(chunks_file_path[chunk_index])['arr_0']
 	for step in range(total_steps):
-		# Check if it's a new chunk to load the new pairs of data:
-		if tile_idx > chunks_tiles[chunk_idx][1]:
-			chunk_idx += 1
-			dataset_chunk_pairs = chunk.load_pairs(images_folder, chunks_images[chunk_idx][0], chunks_images[chunk_idx][1])
-		# Restart the current chunk and tiles if the tiles index reach its maximum:
-		if (tile_idx+1) % total_tiles == 0:
-			tile_idx = 0
-			chunk_idx = 0
-		else:
-			tile_idx += 1
 		# Get the real and fake samples
 		real_map, real_mask, real_y = generate_real_samples(dataset_chunk_pairs, n_batch, n_patch)
 		fake_mask, fake_y = generate_fake_samples(g_model, real_map, n_patch)
@@ -253,13 +217,20 @@ def train(d_model:Model, g_model:Model, gan_model:Model, images_folder:str, n_ep
 		if (step+1) % batches_per_epoch == 0:
 			epoch = epoch + 1
 		# Save trained preview after 10 epochs
-		if (step+1) % (batches_per_epoch * 10) == 0:
-			save_trained_preview(epoch, step, g_model, dataset_chunk_pairs, total_train_images)
+		if (step+1) % (batches_per_epoch * 2) == 0:
+			save_trained_preview(epoch, step, g_model, dataset_chunk_pairs)
 		# Save trained model after 50 epochs
-		if (step+1) % (batches_per_epoch * 50) == 0:
+		if (step+1) % (batches_per_epoch * 10) == 0:
 			save_trained_model(epoch, step, g_model)
+		# Rotate the chunks:
+		if tile_index > len(dataset_chunk_pairs) - 1:
+			tile_index = 0
+			chunk_index = chunk_index + 1 if chunk_index + 1 < len(chunks_file_path) else 0 
+			dataset_chunk_pairs = np.load(chunks_file_path[chunk_index])['arr_0']
+		else:
+			tile_index += 1
 		# Summarize the performance per epoch and step
-		print('> epoch[%d] chunk[%d] step[%d] - losses: dis_real[%.3f] dis_fake[%.3f] generator[%.3f]' % (epoch+1, chunk_idx+1, step+1, d_loss1, d_loss2, g_loss))
+		print('> Training: epoch[%d] chunk[%d] step[%d] - losses: dis_real[%.3f] dis_fake[%.3f] generator[%.3f]' % (epoch+1, chunk_index+1, step+1, d_loss1, d_loss2, g_loss))
 
 def run(images_folder:str = './maps/preprocessed/') -> None:
 	#print('Loaded', maps.shape, masks.shape)
