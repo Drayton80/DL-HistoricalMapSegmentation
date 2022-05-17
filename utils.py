@@ -92,3 +92,10 @@ def downscale_pair_image_pixels(pair_image:Tuple[np.ndarray, np.ndarray]) -> Tup
 # scale from [-1,1] to [0,255] 
 def upscale_image_pixels(image:np.ndarray) -> np.ndarray:
     return image * 127.5 + 127.5
+
+# upscale from [0,255] to [-1,1]
+def upscale_pair_image_pixels(pair_image:Tuple[np.ndarray, np.ndarray]) -> Tuple[np.ndarray, np.ndarray]:
+    return (upscale_image_pixels(pair_image[0]), upscale_image_pixels(pair_image[1]))
+
+def force_2d_to_rgb(matrix:np.ndarray, multi_value:int=1) -> np.ndarray:
+    return np.uint8(np.dstack((matrix, matrix, matrix)) * multi_value)
