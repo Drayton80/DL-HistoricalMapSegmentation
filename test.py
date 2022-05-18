@@ -1,12 +1,11 @@
+import metrics
 import numpy as np
-from logging import error
 from os import listdir
 from tensorflow import keras
-from numpy import ndarray, array, zeros, ones, where, count_nonzero
+from numpy import ndarray, zeros, ones, where
 from typing import Tuple, List
 from PIL import Image
-from tqdm import tqdm
-from utils import force_2d_to_rgb, save_ndarray_as_image, downscale_image_pixels, upscale_image_pixels
+from utils import save_ndarray_as_image, upscale_image_pixels
 
 def remove_alpha_channel(image:ndarray) -> ndarray:
     return image[:, :, :3] if len(image[0][0]) == 4 else image
@@ -63,19 +62,6 @@ def predict_test_images(images_folder:str, predict_folder:str, model_path:str, s
 def segment_binary_matrix(image:ndarray, class_value:int) -> ndarray:
     return np.uint8(where(image == class_value, ones(image.shape), zeros(image.shape)))
 
-# Returns the intersect over unioun result of binary matrices
-def intersection_over_union(mask:ndarray, prediction:ndarray) -> Tuple[float, np.ndarray, np.ndarray]:
-    # Intersections only occurs when has 1 in both matrices, so 2 will be the result in these positions after the sum:
-    intersection:ndarray = where((mask + prediction) == 2, ones(mask.shape), zeros(mask.shape))
-    intersection_count:int = count_nonzero(intersection)
-    # All places that has 1 or 2 counts as union:
-    union:ndarray = where((mask + prediction) >= 1, ones(mask.shape), zeros(mask.shape))
-    union_count:int = count_nonzero(union) if count_nonzero(union) != 0 else 1
-    # If both mask and predictions are blank, then the IoU is maximum:
-    IoU = 1.0 if (mask == 0).all() and (prediction == 0).all() else intersection_count/union_count
-
-    return (IoU, intersection, union)
-
 # Matrices with all classes specified:
 def classify_pairs(masks:List[ndarray], predictions:List[ndarray]) -> Tuple[List[ndarray], List[ndarray]]:
     print('> Classifying pixels')
@@ -84,44 +70,37 @@ def classify_pairs(masks:List[ndarray], predictions:List[ndarray]) -> Tuple[List
 # Binary matrices for each segmentation class that are relevant to apply IoU:
 def segment_pairs(predictions_classes:List[np.ndarray], masks_classes:List[np.ndarray], class_label:int) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     print('> Segmenting class matrices')
-    return ([segment_binary_matrix(prediction, class_label) for prediction in predictions_classes], [segment_binary_matrix(mask, class_label) for mask in masks_classes])
-
-# Gets the IoU for each segmentation class:
-def validate_predictions_with_IoU(class_name:str, predictions_classes:List[np.ndarray], masks_classes:List[np.ndarray], results_file_path:str, predict_folder: str):
-    pairs_total = len(predictions_classes)
-    pairs_IoU:List[float] = []
-    with open(results_file_path, 'a') as file:
-        for index in range(pairs_total):
-            (IoU, intersection, union) = intersection_over_union(predictions_classes[index], masks_classes[index])
-            pairs_IoU.append(IoU)
-            #save_ndarray_as_image(predict_folder, 'pair' + str(index) + '_' + class_name + '_intersection', force_2d_to_rgb(intersection, 255))
-            #save_ndarray_as_image(predict_folder, 'pair' + str(index) + '_' + class_name + '_union', force_2d_to_rgb(union, 255))
-            summarizing_result = '> Calculating ' + class_name + ' IoU: pair[%d] - result[%.4f]' % (index, IoU)
-            file.write(summarizing_result + '\n')
-            print(summarizing_result)
-
-    IoU_mean = sum(pairs_IoU)/pairs_total
-    with open(results_file_path, 'a') as file:
-        file.write('IoU of road segmentation: ' + str(IoU_mean) + '\n')
+    return ([segment_binary_matrix(prediction, class_label) for prediction in predictions_classes], [segment_binary_matrix(mask, class_label) for mask in masks_classes])      
 
 # Run the validation of one given model:
 def run(model_path:str, images_folder:str='./maps/preprocessed/', save_predictions:bool=True) -> None:
     predict_folder = 'maps/predictions/'
+
+    blanks_IoU_results_file = predict_folder + 'IoU Results Blanks.txt'
+    blanks_pError_results_file = predict_folder + 'Pixel Error Results Blanks.txt'
     roads_IoU_results_file = predict_folder + 'IoU Results Roads.txt'
+    roads_pError_results_file = predict_folder + 'Pixel Error Results Roads.txt'
     builds_IoU_results_file = predict_folder + 'IoU Results Buildings.txt'
+    builds_pError_results_file = predict_folder + 'Pixel Error Results Buildings.txt'
     
+    open(blanks_IoU_results_file, 'w+').close()
+    open(blanks_pError_results_file, 'w+').close()
     open(roads_IoU_results_file, 'w+').close()
+    open(roads_pError_results_file, 'w+').close()
     open(builds_IoU_results_file, 'w+').close()
+    open(builds_pError_results_file, 'w+').close()
 
     (masks, predictions) = predict_test_images(images_folder, predict_folder, model_path, save_predictions)
     (predictions_classes, masks_classes) = classify_pairs(masks, predictions)
-        
+    
+    (predictions_blank_classes, masks_blank_classes) = segment_pairs(predictions_classes, masks_classes, 0)
     (predictions_road_classes, masks_road_classes) = segment_pairs(predictions_classes, masks_classes, 1)
-    #[save_ndarray_as_image(predict_folder, 'pair' + str(i) + '_roads_predictions', force_2d_to_rgb(pred, 255)) for i, pred in enumerate(predictions_road_classes)]
-    #[save_ndarray_as_image(predict_folder, 'pair' + str(i) + '_roads_masks', force_2d_to_rgb(pred, 255)) for i, pred in enumerate(masks_road_classes)]  
     (predictions_build_classes, masks_build_classes) = segment_pairs(predictions_classes, masks_classes, 2)
-    #[save_ndarray_as_image(predict_folder, 'pair' + str(i) + '_buildings_predictions', force_2d_to_rgb(pred, 255)) for i, pred in enumerate(predictions_build_classes)]
-    #[save_ndarray_as_image(predict_folder, 'pair' + str(i) + '_buildings_masks', force_2d_to_rgb(pred, 255)) for i, pred in enumerate(masks_build_classes)]
+    
+    metrics.calculate_IoU('blanks', predictions_blank_classes, masks_blank_classes, blanks_IoU_results_file)
+    metrics.calculate_IoU('roads', predictions_road_classes, masks_road_classes, roads_IoU_results_file)
+    metrics.calculate_IoU('buildings', predictions_build_classes, masks_build_classes, builds_IoU_results_file)
 
-    validate_predictions_with_IoU('roads', predictions_road_classes, masks_road_classes, roads_IoU_results_file, predict_folder)
-    validate_predictions_with_IoU('buildings', predictions_build_classes, masks_build_classes, builds_IoU_results_file, predict_folder)
+    metrics.calculate_pixel_error('blanks', predictions_blank_classes, masks_blank_classes, blanks_pError_results_file)
+    metrics.calculate_pixel_error('roads', predictions_road_classes, masks_road_classes, roads_pError_results_file)
+    metrics.calculate_pixel_error('buildings', predictions_build_classes, masks_build_classes, builds_pError_results_file)
