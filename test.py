@@ -77,17 +77,23 @@ def run(model_path:str, images_folder:str='./maps/preprocessed/', save_predictio
     predict_folder = 'maps/predictions/'
 
     blanks_IoU_results_file = predict_folder + 'IoU Results Blanks.txt'
+    blanks_swIoU_results_file = predict_folder + 'swIoU Results Blanks.txt'
     blanks_pError_results_file = predict_folder + 'Pixel Error Results Blanks.txt'
     roads_IoU_results_file = predict_folder + 'IoU Results Roads.txt'
+    roads_swIoU_results_file = predict_folder + 'swIoU Results Roads.txt'
     roads_pError_results_file = predict_folder + 'Pixel Error Results Roads.txt'
     builds_IoU_results_file = predict_folder + 'IoU Results Buildings.txt'
+    builds_swIoU_results_file = predict_folder + 'swIoU Results Buildings.txt'
     builds_pError_results_file = predict_folder + 'Pixel Error Results Buildings.txt'
     
     open(blanks_IoU_results_file, 'w+').close()
+    open(blanks_swIoU_results_file, 'w+').close()
     open(blanks_pError_results_file, 'w+').close()
     open(roads_IoU_results_file, 'w+').close()
+    open(roads_swIoU_results_file, 'w+').close()
     open(roads_pError_results_file, 'w+').close()
     open(builds_IoU_results_file, 'w+').close()
+    open(builds_swIoU_results_file, 'w+').close()
     open(builds_pError_results_file, 'w+').close()
 
     (masks, predictions) = predict_test_images(images_folder, predict_folder, model_path, save_predictions)
@@ -100,6 +106,10 @@ def run(model_path:str, images_folder:str='./maps/preprocessed/', save_predictio
     metrics.calculate_IoU('blanks', predictions_blank_classes, masks_blank_classes, blanks_IoU_results_file)
     metrics.calculate_IoU('roads', predictions_road_classes, masks_road_classes, roads_IoU_results_file)
     metrics.calculate_IoU('buildings', predictions_build_classes, masks_build_classes, builds_IoU_results_file)
+
+    metrics.calculate_swIoU('blanks', predictions_blank_classes, masks_blank_classes, blanks_swIoU_results_file)
+    metrics.calculate_swIoU('roads', predictions_road_classes, masks_road_classes, roads_swIoU_results_file)
+    metrics.calculate_swIoU('buildings', predictions_build_classes, masks_build_classes, builds_swIoU_results_file)
 
     metrics.calculate_pixel_error('blanks', predictions_blank_classes, masks_blank_classes, blanks_pError_results_file)
     metrics.calculate_pixel_error('roads', predictions_road_classes, masks_road_classes, roads_pError_results_file)
